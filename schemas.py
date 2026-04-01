@@ -22,6 +22,7 @@ class TagResponse(TagBase):
 class NoteBase(BaseModel):
     content: Optional[str] = None
     reminder_date: Optional[date] = None
+    is_pinned: bool = False
 
 
 class NoteCreate(NoteBase):
@@ -32,11 +33,13 @@ class NoteUpdate(BaseModel):
     content: Optional[str] = None
     reminder_date: Optional[date] = None
     tag_ids: Optional[List[int]] = None
+    is_pinned: Optional[bool] = None
 
 
 class NoteResponse(NoteBase):
     id: int
     image_path: Optional[str] = None
+    attachment_path: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     is_deleted: bool

@@ -1,11 +1,24 @@
 import os
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from typing import List, Dict, Optional
 from schemas import WeatherResponse
 from datetime import datetime
+import time
 
 
 AMAP_WEATHER_URL = "https://restapi.amap.com/v3/weather/weatherInfo"
+
+session = requests.Session()
+retry_strategy = Retry(
+    total=3,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504],
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
+session.mount("https://", adapter)
+session.mount("http://", adapter)
 
 
 def get_weather_api_key() -> str:
@@ -60,10 +73,6 @@ def get_city_code(city_name: str) -> Optional[str]:
 
 def fetch_weather(city: str, extensions: str = "all") -> Dict:
     api_key = get_weather_api_key()
-    city_code = get_city_code(city)
-    
-    if not city_code:
-        city_code = city
     
     params = {
         "key": api_key,
@@ -72,9 +81,18 @@ def fetch_weather(city: str, extensions: str = "all") -> Dict:
         "output": "json"
     }
     
-    response = requests.get(AMAP_WEATHER_URL, params=params)
-    response.raise_for_status()
-    return response.json()
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = session.get(AMAP_WEATHER_URL, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(1)
+    
+    return {}
 
 
 def get_current_weather(city: str) -> WeatherResponse:

@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import os
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from database import engine, Base, get_db, SessionLocal
 from routers import notes, recycle, weather
@@ -44,6 +46,10 @@ if os.path.exists(static_dir):
 upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(upload_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
+
+attachment_dir = os.path.join(os.path.dirname(__file__), "attachments")
+os.makedirs(attachment_dir, exist_ok=True)
+app.mount("/attachments", StaticFiles(directory=attachment_dir), name="attachments")
 
 
 @app.get("/")

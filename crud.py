@@ -18,7 +18,7 @@ def get_notes(db: Session, skip: int = 0, limit: int = 100, search: str = None, 
     if tag_id:
         query = query.filter(models.Note.tags.any(models.Tag.id == tag_id))
     
-    return query.order_by(models.Note.created_at.desc()).offset(skip).limit(limit).all()
+    return query.order_by(models.Note.is_pinned.desc(), models.Note.created_at.desc()).offset(skip).limit(limit).all()
 
 
 def get_note_by_id(db: Session, note_id: int):
@@ -53,11 +53,13 @@ def get_deleted_notes(db: Session):
     ).order_by(models.Note.deleted_at.desc()).all()
 
 
-def create_note(db: Session, note: schemas.NoteCreate, image_path: Optional[str] = None):
+def create_note(db: Session, note: schemas.NoteCreate, image_path: Optional[str] = None, attachment_path: Optional[str] = None):
     db_note = models.Note(
         content=note.content,
         reminder_date=note.reminder_date,
-        image_path=image_path
+        image_path=image_path,
+        attachment_path=attachment_path,
+        is_pinned=note.is_pinned
     )
     
     if note.tag_ids:
@@ -70,7 +72,7 @@ def create_note(db: Session, note: schemas.NoteCreate, image_path: Optional[str]
     return db_note
 
 
-def update_note(db: Session, note_id: int, note: schemas.NoteUpdate, image_path: Optional[str] = None):
+def update_note(db: Session, note_id: int, note: schemas.NoteUpdate, image_path: Optional[str] = None, attachment_path: Optional[str] = None):
     db_note = get_note_by_id(db, note_id)
     if not db_note:
         return None
@@ -81,10 +83,26 @@ def update_note(db: Session, note_id: int, note: schemas.NoteUpdate, image_path:
         db_note.reminder_date = note.reminder_date
     if image_path is not None:
         db_note.image_path = image_path
+    if attachment_path is not None:
+        db_note.attachment_path = attachment_path
+    if note.is_pinned is not None:
+        db_note.is_pinned = note.is_pinned
     if note.tag_ids is not None:
         tags = db.query(models.Tag).filter(models.Tag.id.in_(note.tag_ids)).all()
         db_note.tags = tags
     
+    db_note.updated_at = datetime.now()
+    db.commit()
+    db.refresh(db_note)
+    return db_note
+
+
+def pin_note(db: Session, note_id: int, is_pinned: bool = True):
+    db_note = get_note_by_id(db, note_id)
+    if not db_note:
+        return None
+    
+    db_note.is_pinned = is_pinned
     db_note.updated_at = datetime.now()
     db.commit()
     db.refresh(db_note)
@@ -159,6 +177,10 @@ def delete_tag(db: Session, tag_id: int):
     db_tag = get_tag_by_id(db, tag_id)
     if not db_tag:
         return None
+    
+    # 先解除与便签的关联
+    db_tag.notes = []
+    db.commit()
     
     db.delete(db_tag)
     db.commit()

@@ -1,5 +1,4 @@
 let currentCard = null;
-let tags = [];
 let notes = [];
 
 function toggleCard(cardName) {
@@ -19,7 +18,6 @@ function toggleCard(cardName) {
             getWeather();
         } else if (cardName === 'notes') {
             loadNotes();
-            loadTags();
         } else if (cardName === 'today') {
             loadTodayNotes();
         } else if (cardName === 'recycle') {
@@ -66,11 +64,9 @@ function getWeatherIcon(weather) {
 
 async function loadNotes() {
     const search = document.getElementById('search-notes').value;
-    const tagId = document.getElementById('filter-tag').value;
     
     let url = '/notes?';
     if (search) url += `search=${encodeURIComponent(search)}&`;
-    if (tagId) url += `tag_id=${tagId}&`;
     
     try {
         const response = await fetch(url);
@@ -89,18 +85,26 @@ function renderNotes() {
     }
     
     container.innerHTML = notes.map(note => `
-        <div class="note-card">
+        <div class="note-card ${note.is_pinned ? 'pinned' : ''}">
             <div class="flex justify-between items-start">
                 <div class="flex-1">
+                    ${note.is_pinned ? '<span class="text-xs bg-yellow-400 text-yellow-800 px-2 py-0.5 rounded">置顶</span>' : ''}
                     <p class="text-gray-800 whitespace-pre-wrap">${note.content || '(无内容)'}</p>
                     ${note.image_path ? `<img src="${note.image_path}" class="note-image" alt="便签图片">` : ''}
-                    <div class="note-tags">
-                        ${note.tags.map(t => `<span class="tag" style="background-color: ${t.color}">${t.name}</span>`).join('')}
-                    </div>
+                    ${note.attachment_path ? `
+                        <div class="mt-2 flex items-center gap-2">
+                            <a href="${note.attachment_path}" target="_blank" class="text-blue-500 text-sm flex items-center gap-1 hover:underline">
+                                📎 查看附件
+                            </a>
+                        </div>
+                    ` : ''}
                 </div>
                 <span class="note-date">${note.reminder_date || '无日期'}</span>
             </div>
             <div class="note-actions">
+                <button class="btn-pin ${note.is_pinned ? 'btn-unpin' : ''}" onclick="togglePin(${note.id}, ${!note.is_pinned})">
+                    ${note.is_pinned ? '取消置顶' : '置顶'}
+                </button>
                 <button class="btn-edit" onclick="editNote(${note.id})">编辑</button>
                 <button class="btn-delete" onclick="deleteNote(${note.id})">删除</button>
             </div>
@@ -125,15 +129,43 @@ async function loadTodayNotes() {
                     <div class="flex-1">
                         <p class="text-gray-800 whitespace-pre-wrap">${note.content || '(无内容)'}</p>
                         ${note.image_path ? `<img src="${note.image_path}" class="note-image" alt="便签图片">` : ''}
-                        <div class="note-tags">
-                            ${note.tags.map(t => `<span class="tag" style="background-color: ${t.color}">${t.name}</span>`).join('')}
-                        </div>
+                        ${note.attachment_path ? `
+                            <div class="mt-2 flex items-center gap-2">
+                                <a href="${note.attachment_path}" target="_blank" class="text-blue-500 text-sm flex items-center gap-1 hover:underline">
+                                    📎 查看附件
+                                </a>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             </div>
         `).join('');
+        
+        if (todayNotes.length > 0) {
+            showTodayNotification(todayNotes);
+        }
     } catch (error) {
         console.error('加载今日待办失败:', error);
+    }
+}
+
+function showTodayNotification(notes) {
+    if (!("Notification" in window)) return;
+    
+    if (Notification.permission === "granted") {
+        new Notification("今日待办", {
+            body: `您今天有 ${notes.length} 条待办事项`,
+            icon: "📝"
+        });
+    } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                new Notification("今日待办", {
+                    body: `您今天有 ${notes.length} 条待办事项`,
+                    icon: "📝"
+                });
+            }
+        });
     }
 }
 
@@ -167,48 +199,14 @@ async function loadRecycleNotes() {
     }
 }
 
-async function loadTags() {
-    try {
-        const response = await fetch('/tags');
-        tags = await response.json();
-        
-        const filterSelect = document.getElementById('filter-tag');
-        filterSelect.innerHTML = '<option value="">全部标签</option>' + 
-            tags.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-        
-        renderTagSelect();
-    } catch (error) {
-        console.error('加载标签失败:', error);
-    }
-}
-
-function renderTagSelect() {
-    const container = document.getElementById('tag-select');
-    container.innerHTML = tags.map(tag => `
-        <label class="tag-checkbox" style="background-color: ${tag.color}20; color: ${tag.color}" 
-               data-id="${tag.id}">
-            <input type="checkbox" value="${tag.id}" class="hidden">${tag.name}
-        </label>
-    `).join('') + `
-        <button class="btn-manage-tags" onclick="showTagModal()">管理标签</button>
-    `;
-    
-    document.querySelectorAll('.tag-checkbox').forEach(el => {
-        el.addEventListener('click', function() {
-            this.classList.toggle('selected');
-            this.querySelector('input').checked = this.classList.contains('selected');
-        });
-    });
-}
-
 function showCreateNoteModal() {
     document.getElementById('modal-title').textContent = '新建便签';
     document.getElementById('note-id').value = '';
     document.getElementById('note-form').reset();
     document.getElementById('current-image').classList.add('hidden');
+    document.getElementById('current-attachment').classList.add('hidden');
+    document.getElementById('note-pinned').checked = false;
     document.getElementById('note-modal').classList.remove('hidden');
-    
-    loadTags();
 }
 
 function editNote(id) {
@@ -219,6 +217,7 @@ function editNote(id) {
     document.getElementById('note-id').value = note.id;
     document.getElementById('note-content').value = note.content || '';
     document.getElementById('note-date').value = note.reminder_date || '';
+    document.getElementById('note-pinned').checked = note.is_pinned || false;
     
     if (note.image_path) {
         document.getElementById('current-image').classList.remove('hidden');
@@ -227,21 +226,12 @@ function editNote(id) {
         document.getElementById('current-image').classList.add('hidden');
     }
     
-    loadTags();
-    
-    setTimeout(() => {
-        document.querySelectorAll('.tag-checkbox').forEach(el => {
-            const tagId = parseInt(el.dataset.id);
-            const isSelected = note.tags.some(t => t.id === tagId);
-            if (isSelected) {
-                el.classList.add('selected');
-                el.querySelector('input').checked = true;
-            } else {
-                el.classList.remove('selected');
-                el.querySelector('input').checked = false;
-            }
-        });
-    }, 100);
+    if (note.attachment_path) {
+        document.getElementById('current-attachment').classList.remove('hidden');
+        document.getElementById('attachment-name').textContent = note.attachment_path.split('/').pop();
+    } else {
+        document.getElementById('current-attachment').classList.add('hidden');
+    }
     
     document.getElementById('note-modal').classList.remove('hidden');
 }
@@ -255,23 +245,43 @@ function removeImage() {
     document.getElementById('note-image').value = '';
 }
 
+function removeAttachment() {
+    document.getElementById('current-attachment').classList.add('hidden');
+    document.getElementById('note-attachment').value = '';
+}
+
+async function togglePin(id, isPinned) {
+    try {
+        const response = await fetch(`/notes/${id}/pin?is_pinned=${isPinned}`, { method: 'PATCH' });
+        if (!response.ok) throw new Error('置顶失败');
+        loadNotes();
+        if (currentCard === 'today') loadTodayNotes();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
 document.getElementById('note-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const id = document.getElementById('note-id').value;
     const content = document.getElementById('note-content').value;
     const reminderDate = document.getElementById('note-date').value;
+    const isPinned = document.getElementById('note-pinned').checked;
     const imageFile = document.getElementById('note-image').files[0];
-    
-    const tagCheckboxes = document.querySelectorAll('.tag-checkbox input:checked');
-    const tagIds = Array.from(tagCheckboxes).map(cb => cb.value).join(',');
+    const attachmentFile = document.getElementById('note-attachment').files[0];
+    const removeImage = document.getElementById('current-image').classList.contains('hidden') && document.getElementById('preview-image').src;
+    const removeAttachment = document.getElementById('current-attachment').classList.contains('hidden') && document.getElementById('attachment-name').textContent;
     
     const formData = new FormData();
     if (id) formData.append('content', content);
     else formData.append('content', content);
     if (reminderDate) formData.append('reminder_date', reminderDate);
-    if (tagIds) formData.append('tag_ids', tagIds);
+    formData.append('is_pinned', isPinned);
     if (imageFile) formData.append('image', imageFile);
+    if (attachmentFile) formData.append('attachment', attachmentFile);
+    if (removeImage) formData.append('remove_image', 'true');
+    if (removeAttachment) formData.append('remove_attachment', 'true');
     
     try {
         const url = id ? `/notes/${id}` : '/notes';
@@ -361,67 +371,6 @@ async function exportNotes(format) {
     }
 }
 
-function showTagModal() {
-    renderTagList();
-    document.getElementById('tag-modal').classList.remove('hidden');
-}
-
-function closeTagModal() {
-    document.getElementById('tag-modal').classList.add('hidden');
-}
-
-function renderTagList() {
-    const container = document.getElementById('tag-list');
-    container.innerHTML = tags.map(tag => `
-        <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
-            <span class="flex items-center gap-2">
-                <span class="w-4 h-4 rounded" style="background-color: ${tag.color}"></span>
-                ${tag.name}
-            </span>
-            <button class="text-red-500 text-sm" onclick="deleteTag(${tag.id})">删除</button>
-        </div>
-    `).join('');
-}
-
-async function createTag() {
-    const name = document.getElementById('new-tag-name').value.trim();
-    const color = document.getElementById('new-tag-color').value;
-    
-    if (!name) {
-        alert('请输入标签名称');
-        return;
-    }
-    
-    try {
-        const response = await fetch('/tags', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, color })
-        });
-        
-        if (!response.ok) throw new Error('创建标签失败');
-        
-        document.getElementById('new-tag-name').value = '';
-        loadTags();
-        renderTagList();
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function deleteTag(id) {
-    if (!confirm('确定要删除这个标签吗？')) return;
-    
-    try {
-        const response = await fetch(`/tags/${id}`, { method: 'DELETE' });
-        if (!response.ok) throw new Error('删除标签失败');
-        loadTags();
-        renderTagList();
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
 document.getElementById('search-notes').addEventListener('input', debounce(loadNotes, 300));
 
 function debounce(fn, delay) {
@@ -435,4 +384,8 @@ function debounce(fn, delay) {
 window.onload = () => {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('note-date').min = today;
+    
+    if (Notification.permission === "default") {
+        Notification.requestPermission();
+    }
 };

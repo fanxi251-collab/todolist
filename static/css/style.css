@@ -297,3 +297,32 @@
     color: #9ca3af;
     margin-top: 4px;
 }
+
+.note-card.pinned {
+    border-color: #fbbf24;
+    background: linear-gradient(135deg, #fefbeb, #fef3c7);
+}
+
+.btn-pin {
+    padding: 4px 12px;
+    background: #f59e0b;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.btn-unpin {
+    background: #6b7280;
+}
+
+.btn-add-tag {
+    padding: 4px 12px;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
