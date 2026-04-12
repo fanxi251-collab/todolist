@@ -1,43 +1,4 @@
-.card {
-    background: white;
-    border-radius: 16px;
-    padding: 24px 16px;
-    text-align: center;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-}
-
-.card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-
-.card-weather:hover {
-    background: linear-gradient(135deg, #e0f2fe, #bae6fd);
-}
-
-.card-notes:hover {
-    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
-}
-
-.card-today:hover {
-    background: linear-gradient(135deg, #fef9c3, #fef08a);
-}
-
-.card-recycle:hover {
-    background: linear-gradient(135deg, #fee2e2, #fecaca);
-}
-
-.card-icon {
-    font-size: 2.5rem;
-    margin-bottom: 8px;
-}
-
-.card-title {
-    font-weight: 600;
-    color: #374151;
-    font-size: 0.95rem;
-}
+/* ==================== 通用组件样式 ==================== */
 
 .panel {
     background: white;
@@ -325,4 +286,132 @@
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.85rem;
+}
+
+/* ==================== 账目模块样式 ==================== */
+.summary-card {
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.summary-card.income {
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+}
+
+.summary-card.expense {
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+}
+
+.summary-card.balance {
+    background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+}
+
+.summary-label {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-bottom: 4px;
+}
+
+.summary-value {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #1f2937;
+}
+
+.account-tab {
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: #6b7280;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.account-tab.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+}
+
+.account-tab:hover {
+    color: #3b82f6;
+}
+
+.account-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.account-item:hover {
+    border-color: #3b82f6;
+}
+
+.account-item-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    margin-right: 12px;
+}
+
+.account-item-info {
+    flex: 1;
+}
+
+.account-item-category {
+    font-weight: 500;
+    color: #1f2937;
+}
+
+.account-item-desc {
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+.account-item-date {
+    font-size: 0.8rem;
+    color: #9ca3af;
+}
+
+.account-item-amount {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.account-item-amount.income {
+    color: #10b981;
+}
+
+.account-item-amount.expense {
+    color: #ef4444;
+}
+
+.account-item-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.category-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    color: white;
+    margin: 4px;
+}
+
+.category-pill span {
+    margin-left: 6px;
 }

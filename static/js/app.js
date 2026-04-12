@@ -1,6 +1,10 @@
 let currentCard = null;
 let notes = [];
 
+// ==================== 账目模块 ====================
+let accountCategories = { expense: [], income: [] };
+let currentAccountTab = 'expense';
+
 function toggleCard(cardName) {
     const panel = document.getElementById(`${cardName}-panel`);
     const isHidden = panel.classList.contains('hidden');
@@ -22,6 +26,8 @@ function toggleCard(cardName) {
             loadTodayNotes();
         } else if (cardName === 'recycle') {
             loadRecycleNotes();
+        } else if (cardName === 'account') {
+            loadAccountData();
         }
     } else {
         currentCard = null;
@@ -385,7 +391,491 @@ window.onload = () => {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('note-date').min = today;
     
+    // 账目日期默认本月
+    const firstDay = new Date();
+    firstDay.setDate(1);
+    document.getElementById('account-start-date').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('account-end-date').value = today;
+    
+    // 默认显示对话
+    showChat();
+    
     if (Notification.permission === "default") {
         Notification.requestPermission();
     }
 };
+
+// ==================== 账目模块 ====================
+
+async function loadAccountData() {
+    const startDate = document.getElementById('account-start-date').value;
+    const endDate = document.getElementById('account-end-date').value;
+    
+    try {
+        // 加载类别
+        const catRes = await fetch('/account/categories');
+        const categories = await catRes.json();
+        accountCategories = { expense: [], income: [] };
+        categories.forEach(c => {
+            accountCategories[c.type].push(c);
+        });
+        
+        // 加载汇总
+        const sumRes = await fetch(`/account/summary?start_date=${startDate}&end_date=${endDate}`);
+        const summary = await sumRes.json();
+        
+        document.getElementById('summary-income').textContent = `¥${(summary.total_income / 100).toFixed(2)}`;
+        document.getElementById('summary-expense').textContent = `¥${(summary.total_expense / 100).toFixed(2)}`;
+        document.getElementById('summary-balance').textContent = `¥${(summary.balance / 100).toFixed(2)}`;
+        
+        // 加载支出列表
+        const expRes = await fetch(`/account/expenses?start_date=${startDate}&end_date=${endDate}`);
+        const expenses = await expRes.json();
+        renderAccountItems(expenses, 'expense');
+        
+        // 加载收入列表
+        const incRes = await fetch(`/account/incomes?start_date=${startDate}&end_date=${endDate}`);
+        const incomes = await incRes.json();
+        renderAccountItems(incomes, 'income');
+        
+        // 渲染图表
+        renderChart(summary);
+        
+    } catch (error) {
+        console.error('加载账目数据失败:', error);
+    }
+}
+
+function renderAccountItems(items, type) {
+    const container = document.getElementById(`${type}-items`);
+    if (items.length === 0) {
+        container.innerHTML = `<p class="text-gray-500 text-center py-4">暂无${type === 'expense' ? '支出' : '收入'}记录</p>`;
+        return;
+    }
+    
+    container.innerHTML = items.map(item => `
+        <div class="account-item">
+            <div class="flex items-center">
+                <div class="account-item-icon" style="background: ${item.category?.color || '#9CA3AF'}20;">
+                    ${item.category?.icon || '💰'}
+                </div>
+                <div class="account-item-info">
+                    <div class="account-item-category">${item.category?.name || '未分类'}</div>
+                    <div class="account-item-desc">${item.description || '-'}</div>
+                    <div class="account-item-date">${item.date}</div>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="account-item-amount ${type}">${type === 'expense' ? '-' : '+'}¥${(item.amount / 100).toFixed(2)}</div>
+                <div class="account-item-actions">
+                    <button class="btn-edit" onclick="editAccount(${item.id}, '${type}')">编辑</button>
+                    <button class="btn-delete" onclick="deleteAccount(${item.id}, '${type}')">删除</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderChart(summary) {
+    // 支出分布
+    const expContainer = document.getElementById('expense-categories');
+    if (summary.expense_by_category.length === 0) {
+        expContainer.innerHTML = '<p class="text-gray-500 text-sm">暂无数据</p>';
+    } else {
+        expContainer.innerHTML = summary.expense_by_category.map(cat => `
+            <div class="category-pill" style="background: ${cat.color};">
+                ${cat.name} <span>¥${(cat.amount / 100).toFixed(2)}</span>
+            </div>
+        `).join('');
+    }
+    
+    // 收入分布
+    const incContainer = document.getElementById('income-categories');
+    if (summary.income_by_category.length === 0) {
+        incContainer.innerHTML = '<p class="text-gray-500 text-sm">暂无数据</p>';
+    } else {
+        incContainer.innerHTML = summary.income_by_category.map(cat => `
+            <div class="category-pill" style="background: ${cat.color};">
+                ${cat.name} <span>¥${(cat.amount / 100).toFixed(2)}</span>
+            </div>
+        `).join('');
+    }
+}
+
+function switchAccountTab(tab) {
+    currentAccountTab = tab;
+    document.querySelectorAll('.account-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.account-tab[data-tab="${tab}"]`).classList.add('active');
+    
+    document.querySelectorAll('.account-tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById(`${tab}-list`).classList.remove('hidden');
+    if (tab === 'chart') {
+        document.getElementById('chart-content').classList.remove('hidden');
+    }
+}
+
+function showAccountModal(type, id = null) {
+    document.getElementById('account-modal-title').textContent = id 
+        ? (type === 'expense' ? '编辑支出' : '编辑收入') 
+        : (type === 'expense' ? '新建支出' : '新建收入');
+    document.getElementById('account-type').value = type;
+    document.getElementById('account-id').value = id || '';
+    document.getElementById('account-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('account-amount').value = '';
+    document.getElementById('account-description').value = '';
+    
+    // 加载类别
+    const select = document.getElementById('account-category');
+    select.innerHTML = accountCategories[type].map(c => 
+        `<option value="${c.id}">${c.icon} ${c.name}</option>`
+    ).join('');
+    
+    document.getElementById('account-modal').classList.remove('hidden');
+}
+
+function closeAccountModal() {
+    document.getElementById('account-modal').classList.add('hidden');
+}
+
+async function editAccount(id, type) {
+    const endpoint = type === 'expense' ? `/account/expenses/${id}` : `/account/incomes/${id}`;
+    try {
+        const res = await fetch(endpoint);
+        const data = await res.json();
+        
+        showAccountModal(type, id);
+        document.getElementById('account-amount').value = (data.amount / 100).toFixed(2);
+        document.getElementById('account-date').value = data.date;
+        document.getElementById('account-description').value = data.description || '';
+        
+        if (data.category_id) {
+            document.getElementById('account-category').value = data.category_id;
+        }
+    } catch (error) {
+        alert('获取记录失败');
+    }
+}
+
+async function deleteAccount(id, type) {
+    if (!confirm(`确定要删除这条${type === 'expense' ? '支出' : '收入'}记录吗？`)) return;
+    
+    const endpoint = type === 'expense' ? `/account/expenses/${id}` : `/account/incomes/${id}`;
+    try {
+        const res = await fetch(endpoint, { method: 'DELETE' });
+        if (!res.ok) throw new Error('删除失败');
+        loadAccountData();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+document.getElementById('account-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const id = document.getElementById('account-id').value;
+    const type = document.getElementById('account-type').value;
+    const amount = Math.round(parseFloat(document.getElementById('account-amount').value) * 100);
+    const date = document.getElementById('account-date').value;
+    const category_id = parseInt(document.getElementById('account-category').value);
+    const description = document.getElementById('account-description').value;
+    
+    const payload = { amount, date, category_id, description };
+    
+    try {
+        const url = id 
+            ? `/${type === 'expense' ? 'account/expenses' : 'account/incomes'}/${id}`
+            : `/${type === 'expense' ? 'account/expenses' : 'account/incomes'}`;
+        const method = id ? 'PUT' : 'POST';
+        
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || '保存失败');
+        }
+        
+        closeAccountModal();
+        loadAccountData();
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+// ==================== 智能对话模块 ====================
+
+let currentConversationId = null;
+let conversations = [];
+
+// 切换到对话视图
+function showChat() {
+    document.getElementById('chat-view').classList.remove('hidden');
+    document.getElementById('chat-view').style.display = 'flex';
+    document.getElementById('panel-view').classList.remove('active');
+    
+    document.querySelectorAll('.sidebar-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector('.sidebar-item:first-child').classList.add('active');
+}
+
+// 切换到面板视图
+function showPanel(panelName) {
+    document.getElementById('chat-view').classList.add('hidden');
+    document.getElementById('chat-view').style.display = 'none';
+    document.getElementById('panel-view').classList.add('active');
+    
+    // 显示对应面板
+    document.querySelectorAll('#panel-view .panel').forEach(p => p.style.display = 'none');
+    const panel = document.getElementById(`${panelName}-panel`);
+    if (panel) {
+        panel.style.display = 'block';
+    }
+    
+    // 更新侧边栏
+    document.querySelectorAll('.sidebar-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // 加载数据
+    if (panelName === 'weather') {
+        if (!document.getElementById('weather-city').value) {
+            document.getElementById('weather-city').value = '北京';
+        }
+        getWeather();
+    } else if (panelName === 'notes') {
+        loadNotes();
+    } else if (panelName === 'today') {
+        loadTodayNotes();
+    } else if (panelName === 'recycle') {
+        loadRecycleNotes();
+    } else if (panelName === 'account') {
+        loadAccountData();
+    } else if (panelName === 'tags') {
+        loadTags();
+    }
+}
+
+// 发送消息
+async function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    if (!message) return;
+    
+    // 显示用户消息
+    addMessageToChat('user', message);
+    input.value = '';
+    
+    // 显示加载状态
+    document.getElementById('typing-indicator').classList.add('active');
+    document.getElementById('send-btn').disabled = true;
+    
+    try {
+        const res = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: message,
+                conversation_id: currentConversationId
+            })
+        });
+        
+        if (!res.ok) throw new Error('发送失败');
+        
+        const data = await res.json();
+        
+        currentConversationId = data.conversation_id;
+        document.getElementById('chat-title').textContent = message.slice(0, 20) + (message.length > 20 ? '...' : '');
+        
+        // 显示助手回复
+        document.getElementById('typing-indicator').classList.remove('active');
+        addMessageToChat('assistant', data.response);
+        
+    } catch (error) {
+        document.getElementById('typing-indicator').classList.remove('active');
+        addMessageToChat('assistant', '抱歉，出了点问题: ' + error.message);
+    }
+    
+    document.getElementById('send-btn').disabled = false;
+}
+
+function addMessageToChat(role, content) {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = `message ${role}`;
+    div.innerHTML = `
+        <div class="message-avatar">${role === 'user' ? '👤' : '🤖'}</div>
+        <div class="message-content">${escapeHtml(content)}</div>
+    `;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 表单提交
+document.getElementById('chat-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    sendMessage();
+});
+
+// 会话列表
+async function loadConversations() {
+    try {
+        const res = await fetch('/chat/conversations');
+        const data = await res.json();
+        conversations = data.conversations || [];
+        renderConversationList();
+    } catch (error) {
+        console.error('加载会话失败:', error);
+    }
+}
+
+function renderConversationList() {
+    const container = document.getElementById('conversation-list');
+    if (conversations.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">暂无历史会话</p>';
+        return;
+    }
+    
+    container.innerHTML = conversations.map(c => `
+        <div class="conversation-item ${c.id === currentConversationId ? 'active' : ''}" onclick="loadConversation(${c.id})">
+            <div class="font-medium">${escapeHtml(c.title)}</div>
+            <div class="text-xs text-gray-500">${new Date(c.updated_at).toLocaleString()}</div>
+        </div>
+    `).join('');
+}
+
+async function loadConversation(id) {
+    try {
+        const res = await fetch(`/chat/conversations/${id}`);
+        const data = await res.json();
+        
+        currentConversationId = id;
+        document.getElementById('chat-title').textContent = data.title;
+        
+        // 显示消息
+        const container = document.getElementById('chat-messages');
+        container.innerHTML = '';
+        
+        data.messages.forEach(m => {
+            addMessageToChat(m.role, m.content);
+        });
+        
+        hideConversationModal();
+        showChat();
+    } catch (error) {
+        alert('加载会话失败');
+    }
+}
+
+function showConversationModal() {
+    loadConversations();
+    document.getElementById('conversation-modal').classList.add('active');
+}
+
+function hideConversationModal() {
+    document.getElementById('conversation-modal').classList.remove('active');
+}
+
+async function createNewConversation() {
+    try {
+        const res = await fetch('/chat/conversations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: '新对话' })
+        });
+        const data = await res.json();
+        
+        currentConversationId = data.id;
+        document.getElementById('chat-title').textContent = '新对话';
+        
+        // 清空消息
+        document.getElementById('chat-messages').innerHTML = `
+            <div class="message assistant">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">你好！我是你的智能生活助手。有什么可以帮你的吗？</div>
+            </div>
+        `;
+        
+        hideConversationModal();
+    } catch (error) {
+        alert('创建会话失败');
+    }
+}
+
+// ==================== 标签管理模块 ====================
+
+async function loadTags() {
+    try {
+        const res = await fetch('/tags');
+        const tags = await res.json();
+        renderTags(tags);
+    } catch (error) {
+        console.error('加载标签失败:', error);
+    }
+}
+
+function renderTags(tags) {
+    const container = document.getElementById('tags-list');
+    if (tags.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">暂无标签</p>';
+        return;
+    }
+    
+    container.innerHTML = tags.map(tag => `
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div class="flex items-center gap-3">
+                <span class="w-4 h-4 rounded-full" style="background: ${tag.color}"></span>
+                <span class="font-medium">${escapeHtml(tag.name)}</span>
+            </div>
+            <button onclick="deleteTag(${tag.id})" class="text-red-500 hover:text-red-700 text-sm">
+                删除
+            </button>
+        </div>
+    `).join('');
+}
+
+async function createTag() {
+    const name = document.getElementById('new-tag-name').value.trim();
+    const color = document.getElementById('new-tag-color').value;
+    
+    if (!name) {
+        alert('请输入标签名称');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/tags', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, color })
+        });
+        
+        if (!res.ok) throw new Error('创建失败');
+        
+        document.getElementById('new-tag-name').value = '';
+        loadTags();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function deleteTag(id) {
+    if (!confirm('确定要删除这个标签吗？')) return;
+    
+    try {
+        const res = await fetch(`/tags/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('删除失败');
+        loadTags();
+    } catch (error) {
+        alert(error.message);
+    }
+}

@@ -8,7 +8,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from database import engine, Base, get_db, SessionLocal
-from routers import notes, recycle, weather
+from routers import notes, recycle, weather, account, chat
 import crud
 import schemas
 
@@ -20,6 +20,8 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         crud.cleanup_old_deleted_notes(db, days=7)
+        # 初始化默认账目类别
+        crud.init_default_categories(db)
     finally:
         db.close()
     yield
@@ -38,6 +40,8 @@ app.add_middleware(
 app.include_router(notes.router)
 app.include_router(recycle.router)
 app.include_router(weather.router)
+app.include_router(account.router)
+app.include_router(chat.router)
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
