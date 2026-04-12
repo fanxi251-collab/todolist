@@ -86,11 +86,17 @@ todolist/
 | POST | `/account/incomes` | 添加收入 |
 =======
 # to_do_list-
-用opencode创作的to_do_list网站，支持天气查询和便签记录与管理
+
 
 4月1日更新
 
 -新增便签置顶功能
 
 -新增附件支持。支持PDF等文档
->>>>>>> 0bf2c7ba4730cd9b84cdc368a25e4919f5413dcc
+
+4月12日更新，融合了RAG_Agent，新增与智能体对话功能
+新增账单记录功能
+<img width="2552" height="1237" alt="image" src="https://github.com/user-attachments/assets/f4fd1553-2e7e-4207-a449-06cc333d442a" />
+<img width="2546" height="1225" alt="image" src="https://github.com/user-attachments/assets/6ab38326-b060-49c0-b276-65cf73758065" />
+
+
