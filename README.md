@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 智能生活助手
 
 一个基于 FastAPI 的智能生活管理平台，支持便签管理、账本记录、天气查询和智能对话功能。
@@ -83,3 +84,13 @@ todolist/
 | GET | `/weather` | 天气查询 |
 | POST | `/account/expenses` | 添加支出 |
 | POST | `/account/incomes` | 添加收入 |
+=======
+# to_do_list-
+用opencode创作的to_do_list网站，支持天气查询和便签记录与管理
+
+4月1日更新
+
+-新增便签置顶功能
+
+-新增附件支持。支持PDF等文档
+>>>>>>> 0bf2c7ba4730cd9b84cdc368a25e4919f5413dcc
